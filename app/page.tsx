@@ -29,6 +29,7 @@ export default function Home() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("route-picker-routes");
@@ -77,8 +78,8 @@ export default function Home() {
         setConnected(false);
         return;
       }
-      if (!response.ok) throw new Error("Impossible de récupérer les sorties vélo.");
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Impossible de récupérer les sorties vélo.");
       setActivities(data.activities);
       localStorage.setItem("route-picker-activities", JSON.stringify(data.activities));
       setShowHeatmap(true);
@@ -101,6 +102,15 @@ export default function Home() {
     setFavorites(next);
     localStorage.setItem("route-picker-favorites", JSON.stringify(next));
   }
+
+  const activitiesByYear = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const activity of activities) {
+      const year = activity.start_date.slice(0, 4);
+      counts.set(year, (counts.get(year) || 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [activities]);
 
   const filteredRoutes = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
@@ -126,6 +136,7 @@ export default function Home() {
           <h1>Trouve le bon parcours, sans fouiller dans Strava.</h1>
         </div>
         <div className="headerActions">
+          <button className="ghost" onClick={() => setShowSettings(true)}>Réglages</button>
           {connected ? (
             <>
               <button className="secondary" onClick={refreshRoutes} disabled={loading}>
@@ -138,6 +149,36 @@ export default function Home() {
           )}
         </div>
       </header>
+
+      {showSettings && (
+        <div className="modalOverlay" onClick={() => setShowSettings(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <h2>Réglages</h2>
+              <button className="ghost" onClick={() => setShowSettings(false)}>Fermer</button>
+            </div>
+            <h3>Séances vélo importées par année</h3>
+            {activitiesByYear.length === 0 ? (
+              <p className="empty">
+                Aucune séance importée. Clique sur « Charger mes sorties vélo » dans les filtres.
+              </p>
+            ) : (
+              <ul className="yearList">
+                {activitiesByYear.map(([year, count]) => (
+                  <li key={year}>
+                    <span>{year}</span>
+                    <strong>{count}</strong>
+                  </li>
+                ))}
+                <li className="yearTotal">
+                  <span>Total</span>
+                  <strong>{activities.length}</strong>
+                </li>
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       <section className="workspace">
         <aside className="panel">

@@ -104,6 +104,38 @@ input, select {
 .selectedRoute span { font-size: 13px; color: var(--muted); }
 .selectedRoute a { background: var(--accent); color: white; white-space: nowrap; }
 
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(23,23,23,.45);
+  display: grid;
+  place-items: center;
+  z-index: 2000;
+  padding: 18px;
+}
+.modal {
+  background: var(--paper);
+  border-radius: 14px;
+  padding: 22px;
+  width: 100%;
+  max-width: 380px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+}
+.modalHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.modalHeader h2 { margin: 0; font-size: 18px; }
+.modal h3 { font-size: 13px; color: var(--muted); margin: 18px 0 10px; }
+.yearList { list-style: none; margin: 0; padding: 0; }
+.yearList li {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.yearTotal { font-weight: 800; border-bottom: 0 !important; padding-top: 12px !important; }
+
 @media (max-width: 800px) {
   .topbar { min-height: auto; padding: 16px; align-items: flex-start; flex-direction: column; }
   .headerActions { width: 100%; }
