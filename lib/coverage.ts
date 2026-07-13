@@ -1,6 +1,7 @@
 const EARTH_RADIUS = 6371000;
 const CELL_SIZE_METERS = 50;
 const DEFAULT_THRESHOLD_METERS = 50;
+const DENSIFY_STEP_METERS = 30;
 
 type Point = [number, number];
 
@@ -17,6 +18,27 @@ function haversine(a: Point, b: Point) {
   return 2 * EARTH_RADIUS * Math.asin(Math.sqrt(h));
 }
 
+// Strava's summary_polyline is simplified and can leave long gaps between
+// vertices on straight sections. Without this, two points 300m apart on the
+// same road would fail a point-to-point proximity check even though the road
+// between them was fully ridden.
+function densify(points: Point[], maxSegmentMeters: number): Point[] {
+  if (points.length < 2) return points;
+  const result: Point[] = [points[0]];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const dist = haversine(a, b);
+    if (dist === 0) continue;
+    const steps = Math.max(1, Math.ceil(dist / maxSegmentMeters));
+    for (let s = 1; s <= steps; s++) {
+      const t = s / steps;
+      result.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    }
+  }
+  return result;
+}
+
 function lngStepAt(lat: number) {
   return CELL_SIZE_METERS / (111320 * Math.max(Math.cos(toRad(lat)), 0.1));
 }
@@ -30,7 +52,8 @@ export type ActivityIndex = {
 export function buildActivityIndex(activityPointSets: Point[][]): ActivityIndex {
   const grid = new Map<string, Point[]>();
 
-  for (const points of activityPointSets) {
+  for (const rawPoints of activityPointSets) {
+    const points = densify(rawPoints, DENSIFY_STEP_METERS);
     for (const point of points) {
       const key = `${Math.floor(point[0] / latStep)}_${Math.floor(point[1] / lngStepAt(point[0]))}`;
       const bucket = grid.get(key);
@@ -58,11 +81,12 @@ export function buildActivityIndex(activityPointSets: Point[][]): ActivityIndex 
 }
 
 export function newRoadPercentage(
-  routePoints: Point[],
+  rawRoutePoints: Point[],
   index: ActivityIndex,
   thresholdMeters = DEFAULT_THRESHOLD_METERS
 ) {
-  if (routePoints.length < 2) return null;
+  if (rawRoutePoints.length < 2) return null;
+  const routePoints = densify(rawRoutePoints, DENSIFY_STEP_METERS);
 
   let totalLength = 0;
   let newLength = 0;
