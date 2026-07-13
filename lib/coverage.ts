@@ -1,11 +1,17 @@
 const EARTH_RADIUS = 6371000;
-// Grid resolution is independent from the matching threshold below: isNear()
-// widens its neighbor search to cover whatever threshold it's given.
-const CELL_SIZE_METERS = 25;
+// Grid resolution is only a broad-phase lookup and is independent from the
+// matching threshold: isNear() widens its neighbor search to cover whatever
+// threshold it's given, and distances are computed exactly (point-to-segment,
+// not point-to-point), so this can stay coarse without losing precision.
+const CELL_SIZE_METERS = 50;
 const DEFAULT_THRESHOLD_METERS = 75;
-const DENSIFY_STEP_METERS = 20;
+// Only the route side is densified (a route is short); activities are
+// indexed as exact line segments so precision isn't limited by sample
+// spacing, and memory stays bounded regardless of total ridden distance.
+const ROUTE_SAMPLE_STEP_METERS = 5;
 
 type Point = [number, number];
+type Segment = { a: Point; b: Point };
 
 function toRad(deg: number) {
   return (deg * Math.PI) / 180;
@@ -20,10 +26,32 @@ function haversine(a: Point, b: Point) {
   return 2 * EARTH_RADIUS * Math.asin(Math.sqrt(h));
 }
 
-// Strava's summary_polyline is simplified and can leave long gaps between
-// vertices on straight sections. Without this, two points 300m apart on the
-// same road would fail a point-to-point proximity check even though the road
-// between them was fully ridden.
+// Equirectangular projection around `origin` is accurate to well under a
+// meter at the threshold scales used here, and is much cheaper than exact
+// great-circle point-to-segment math.
+function projectMeters(point: Point, origin: Point): [number, number] {
+  const x = toRad(point[1] - origin[1]) * 111320 * Math.cos(toRad(origin[0]));
+  const y = toRad(point[0] - origin[0]) * 111320;
+  return [x, y];
+}
+
+function pointToSegmentMeters(p: Point, a: Point, b: Point): number {
+  const P = projectMeters(p, a);
+  const B = projectMeters(b, a);
+  const abx = B[0];
+  const aby = B[1];
+  const apx = P[0];
+  const apy = P[1];
+  const lenSq = abx * abx + aby * aby;
+  let t = lenSq === 0 ? 0 : (apx * abx + apy * aby) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const cx = abx * t;
+  const cy = aby * t;
+  const dx = P[0] - cx;
+  const dy = P[1] - cy;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 function densify(points: Point[], maxSegmentMeters: number): Point[] {
   if (points.length < 2) return points;
   const result: Point[] = [points[0]];
@@ -47,33 +75,55 @@ function lngStepAt(lat: number) {
 
 const latStep = CELL_SIZE_METERS / 111320;
 
+function cellKey(lat: number, lng: number) {
+  return `${Math.floor(lat / latStep)}_${Math.floor(lng / lngStepAt(lat))}`;
+}
+
+function cellsForSegment(a: Point, b: Point): string[] {
+  const dist = haversine(a, b);
+  const steps = Math.max(1, Math.ceil(dist / (CELL_SIZE_METERS / 2)));
+  const keys = new Set<string>();
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    keys.add(cellKey(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t));
+  }
+  return [...keys];
+}
+
 export type ActivityIndex = {
   isNear: (point: Point, thresholdMeters?: number) => boolean;
 };
 
 export function buildActivityIndex(activityPointSets: Point[][]): ActivityIndex {
-  const grid = new Map<string, Point[]>();
+  const grid = new Map<string, Segment[]>();
 
-  for (const rawPoints of activityPointSets) {
-    const points = densify(rawPoints, DENSIFY_STEP_METERS);
-    for (const point of points) {
-      const key = `${Math.floor(point[0] / latStep)}_${Math.floor(point[1] / lngStepAt(point[0]))}`;
-      const bucket = grid.get(key);
-      if (bucket) bucket.push(point);
-      else grid.set(key, [point]);
+  for (const points of activityPointSets) {
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i];
+      const b = points[i + 1];
+      if (haversine(a, b) === 0) continue;
+      const segment: Segment = { a, b };
+      for (const key of cellsForSegment(a, b)) {
+        const bucket = grid.get(key);
+        if (bucket) bucket.push(segment);
+        else grid.set(key, [segment]);
+      }
     }
   }
 
-  function isNear([lat, lng]: Point, thresholdMeters = DEFAULT_THRESHOLD_METERS) {
-    const latCell = Math.floor(lat / latStep);
-    const lngCell = Math.floor(lng / lngStepAt(lat));
+  function isNear(point: Point, thresholdMeters = DEFAULT_THRESHOLD_METERS) {
+    const latCell = Math.floor(point[0] / latStep);
+    const lngCell = Math.floor(point[1] / lngStepAt(point[0]));
     const cellRadius = Math.max(1, Math.ceil(thresholdMeters / CELL_SIZE_METERS));
+    const seen = new Set<Segment>();
     for (let dLat = -cellRadius; dLat <= cellRadius; dLat++) {
       for (let dLng = -cellRadius; dLng <= cellRadius; dLng++) {
         const bucket = grid.get(`${latCell + dLat}_${lngCell + dLng}`);
         if (!bucket) continue;
-        for (const point of bucket) {
-          if (haversine([lat, lng], point) <= thresholdMeters) return true;
+        for (const segment of bucket) {
+          if (seen.has(segment)) continue;
+          seen.add(segment);
+          if (pointToSegmentMeters(point, segment.a, segment.b) <= thresholdMeters) return true;
         }
       }
     }
@@ -89,7 +139,7 @@ export function newRoadPercentage(
   thresholdMeters = DEFAULT_THRESHOLD_METERS
 ) {
   if (rawRoutePoints.length < 2) return null;
-  const routePoints = densify(rawRoutePoints, DENSIFY_STEP_METERS);
+  const routePoints = densify(rawRoutePoints, ROUTE_SAMPLE_STEP_METERS);
 
   let totalLength = 0;
   let newLength = 0;

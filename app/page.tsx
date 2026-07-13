@@ -182,8 +182,8 @@ export default function Home() {
     <main>
       <header className="topbar">
         <div>
-          <div className="eyebrow">ROUTE PICKER</div>
-          <h1>Trouve le bon parcours, sans fouiller dans Strava.</h1>
+          <h1 className="brandTitle">Route Picker</h1>
+          <p className="brandSubtitle">Trouve le bon parcours, sans fouiller dans Strava.</p>
         </div>
         <div className="headerActions">
           <button className="ghost" onClick={() => setShowSettings(true)}>Réglages</button>
@@ -207,25 +207,27 @@ export default function Home() {
               <h2>Réglages</h2>
               <button className="ghost" onClick={() => setShowSettings(false)}>Fermer</button>
             </div>
-            <h3>Séances vélo importées par année</h3>
-            {activitiesByYear.length === 0 ? (
-              <p className="empty">
-                Aucune séance importée. Clique sur « Charger mes sorties vélo » dans les filtres.
-              </p>
-            ) : (
-              <ul className="yearList">
-                {activitiesByYear.map(([year, count]) => (
-                  <li key={year}>
-                    <span>{year}</span>
-                    <strong>{count}</strong>
+            <div className="modalBody">
+              <h3>Séances vélo importées par année</h3>
+              {activitiesByYear.length === 0 ? (
+                <p className="empty">
+                  Aucune séance importée. Clique sur « Charger mes sorties vélo » dans le footer Heatmap.
+                </p>
+              ) : (
+                <ul className="yearList">
+                  {activitiesByYear.map(([year, count]) => (
+                    <li key={year}>
+                      <span>{year}</span>
+                      <strong>{count}</strong>
+                    </li>
+                  ))}
+                  <li className="yearTotal">
+                    <span>Total</span>
+                    <strong>{activities.length}</strong>
                   </li>
-                ))}
-                <li className="yearTotal">
-                  <span>Total</span>
-                  <strong>{activities.length}</strong>
-                </li>
-              </ul>
-            )}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -272,8 +274,9 @@ export default function Home() {
 
       <section className="workspace">
         <aside className="panel">
-          <div className="count">
-            <strong>{filteredRoutes.length}</strong> itinéraire{filteredRoutes.length > 1 ? "s" : ""}
+          <div className="sectionBar">
+            Itinéraires
+            <span className="sectionBarCount">{filteredRoutes.length}</span>
           </div>
 
           <div className="routeList">
@@ -344,13 +347,13 @@ export default function Home() {
       </section>
 
       <footer className="heatmapBar">
-        <div className="heatmapBarLabel">Heatmap</div>
+        <div className="sectionBar sectionBarInline">Heatmap</div>
         <label className="checkLabel">
           <input type="checkbox" checked={showHeatmap} disabled={activities.length === 0}
             onChange={(e) => setShowHeatmap(e.target.checked)} />
           Afficher
         </label>
-        <button className="ghost" onClick={loadActivities} disabled={loadingActivities}>
+        <button className="secondary" onClick={loadActivities} disabled={loadingActivities}>
           {loadingActivities ? "Import…" : activities.length ? `Actualiser mes sorties (${activities.length})` : "Charger mes sorties vélo"}
         </button>
         <label className="rangeField">
@@ -378,7 +381,7 @@ export default function Home() {
             </label>
           </>
         )}
-        <button className="ghost" onClick={computeCoverage} disabled={computingCoverage || activities.length === 0}>
+        <button className="accent" onClick={computeCoverage} disabled={computingCoverage || activities.length === 0}>
           {computingCoverage ? "Calcul…" : "Calculer les routes nouvelles"}
         </button>
       </footer>
