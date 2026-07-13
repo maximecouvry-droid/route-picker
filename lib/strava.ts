@@ -62,3 +62,37 @@ export async function fetchAllRoutes() {
   }
   return all;
 }
+
+const CYCLING_SPORT_TYPES = new Set([
+  "Ride",
+  "GravelRide",
+  "MountainBikeRide",
+  "EBikeRide",
+  "Handcycle",
+  "Velomobile"
+]);
+
+export async function fetchAllCyclingActivities() {
+  const session = await getValidSession();
+  if (!session) return null;
+
+  const all = [];
+  for (let page = 1; page <= 50; page++) {
+    const url = `${STRAVA_API}/athlete/activities?page=${page}&per_page=200`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      throw new Error(`Erreur Strava ${response.status}: ${details}`);
+    }
+
+    const raw = await response.text();
+    const batch = jsonBig.parse(raw);
+    all.push(...batch);
+    if (batch.length < 200) break;
+  }
+  return all.filter((activity) => CYCLING_SPORT_TYPES.has(activity.sport_type));
+}

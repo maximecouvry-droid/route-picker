@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import type { RouteItem } from "@/lib/types";
+import type { ActivityItem, RouteItem } from "@/lib/types";
 
 const RoutesMap = dynamic(() => import("@/components/RoutesMap"), {
   ssr: false,
@@ -26,15 +26,22 @@ export default function Home() {
   const [sort, setSort] = useState<SortKey>("distance");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [showFavorites, setShowFavorites] = useState(false);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("route-picker-routes");
     const savedFavs = localStorage.getItem("route-picker-favorites");
+    const savedActivities = localStorage.getItem("route-picker-activities");
     if (saved) {
       try { setRoutes(JSON.parse(saved)); } catch {}
     }
     if (savedFavs) {
       try { setFavorites(JSON.parse(savedFavs)); } catch {}
+    }
+    if (savedActivities) {
+      try { setActivities(JSON.parse(savedActivities)); } catch {}
     }
     fetch("/api/auth/status")
       .then((r) => r.json())
@@ -59,6 +66,26 @@ export default function Home() {
       alert(error instanceof Error ? error.message : "Erreur inconnue");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadActivities() {
+    setLoadingActivities(true);
+    try {
+      const response = await fetch("/api/activities", { cache: "no-store" });
+      if (response.status === 401) {
+        setConnected(false);
+        return;
+      }
+      if (!response.ok) throw new Error("Impossible de récupérer les sorties vélo.");
+      const data = await response.json();
+      setActivities(data.activities);
+      localStorage.setItem("route-picker-activities", JSON.stringify(data.activities));
+      setShowHeatmap(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Erreur inconnue");
+    } finally {
+      setLoadingActivities(false);
     }
   }
 
@@ -158,6 +185,19 @@ export default function Home() {
                 Mes favoris
               </label>
             </div>
+
+            <div className="twoCols">
+              <button className="secondary" onClick={loadActivities} disabled={loadingActivities}>
+                {loadingActivities ? "Import…" : activities.length ? "Actualiser mes sorties" : "Charger mes sorties vélo"}
+              </button>
+              {activities.length > 0 && (
+                <label className="checkLabel">
+                  <input type="checkbox" checked={showHeatmap}
+                    onChange={(e) => setShowHeatmap(e.target.checked)} />
+                  Heatmap ({activities.length})
+                </label>
+              )}
+            </div>
           </div>
 
           <div className="count">
@@ -204,6 +244,7 @@ export default function Home() {
             routes={filteredRoutes}
             selectedId={selectedId}
             onSelect={setSelectedId}
+            heatmapActivities={showHeatmap ? activities : []}
           />
           {selected && (
             <div className="selectedRoute">

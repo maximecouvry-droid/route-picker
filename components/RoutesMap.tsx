@@ -3,7 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { MapContainer, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
 import type { LatLngBoundsExpression, LatLngExpression } from "leaflet";
-import type { RouteItem } from "@/lib/types";
+import type { ActivityItem, RouteItem } from "@/lib/types";
 import { decodePolyline } from "@/lib/polyline";
 
 function FitBounds({ points }: { points: LatLngExpression[] }) {
@@ -19,11 +19,13 @@ function FitBounds({ points }: { points: LatLngExpression[] }) {
 export default function RoutesMap({
   routes,
   selectedId,
-  onSelect
+  onSelect,
+  heatmapActivities = []
 }: {
   routes: RouteItem[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  heatmapActivities?: ActivityItem[];
 }) {
   const decoded = useMemo(
     () => routes
@@ -35,6 +37,16 @@ export default function RoutesMap({
     [routes]
   );
 
+  const decodedActivities = useMemo(
+    () => heatmapActivities
+      .map((activity) => ({
+        id: activity.id,
+        points: decodePolyline(activity.map?.summary_polyline || "")
+      }))
+      .filter((item) => item.points.length > 1),
+    [heatmapActivities]
+  );
+
   const allPoints = useMemo(() => decoded.flatMap((item) => item.points), [decoded]);
 
   return (
@@ -44,6 +56,14 @@ export default function RoutesMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <FitBounds points={allPoints} />
+      {decodedActivities.map(({ id, points }) => (
+        <Polyline
+          key={`activity-${id}`}
+          positions={points}
+          pathOptions={{ color: "#1e78d6", weight: 2, opacity: 0.15 }}
+          interactive={false}
+        />
+      ))}
       {decoded.map(({ route, points }) => (
         <Polyline
           key={route.id}

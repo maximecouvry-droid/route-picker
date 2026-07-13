@@ -12,7 +12,7 @@ export async function GET() {
     redirect_uri: `${baseUrl}/api/auth/callback`,
     response_type: "code",
     approval_prompt: "auto",
-    scope: "read,read_all"
+    scope: "read,read_all,activity:read_all"
   });
 
   return NextResponse.redirect(`https://www.strava.com/oauth/authorize?${params}`);

@@ -15,3 +15,16 @@ export type RouteItem = {
     polyline?: string;
   };
 };
+
+export type ActivityItem = {
+  id: string;
+  name: string;
+  distance: number;
+  total_elevation_gain: number;
+  sport_type: string;
+  start_date: string;
+  map: {
+    id?: string;
+    summary_polyline?: string;
+  };
+};
