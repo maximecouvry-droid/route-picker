@@ -1,10 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ActivityItem, RouteItem } from "@/lib/types";
 import { decodePolyline } from "@/lib/polyline";
-import { buildActivityIndex, newRoadPercentage } from "@/lib/coverage";
+import { buildActivityIndex, newRoadPercentage, routeCoverageSegments, type ActivityIndex } from "@/lib/coverage";
 
 const RoutesMap = dynamic(() => import("@/components/RoutesMap"), {
   ssr: false,
@@ -36,6 +36,7 @@ export default function Home() {
   const [computingCoverage, setComputingCoverage] = useState(false);
   const [heatmapOpacity, setHeatmapOpacity] = useState(0.18);
   const [yearRange, setYearRange] = useState<[number, number]>([0, 0]);
+  const activityIndexRef = useRef<ActivityIndex | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("route-picker-routes");
@@ -107,6 +108,7 @@ export default function Home() {
         .map((activity) => decodePolyline(activity.map?.summary_polyline || ""))
         .filter((points) => points.length > 1);
       const index = buildActivityIndex(activityPointSets);
+      activityIndexRef.current = index;
 
       const next: Record<string, number | null> = {};
       for (const route of routes) {
@@ -177,6 +179,12 @@ export default function Home() {
   }, [routes, query, minDistance, maxDistance, maxElevation, sort, showFavorites, favorites, coverage]);
 
   const selected = filteredRoutes.find((route) => route.id === selectedId) ?? null;
+
+  const selectedCoverageSegments = useMemo(() => {
+    if (!selected || !activityIndexRef.current || coverage[selected.id] == null) return [];
+    const points = decodePolyline(selected.map?.summary_polyline || selected.map?.polyline || "");
+    return routeCoverageSegments(points, activityIndexRef.current);
+  }, [selected, coverage]);
 
   return (
     <main>
@@ -324,6 +332,7 @@ export default function Home() {
             onSelect={setSelectedId}
             heatmapActivities={heatmapActivities}
             heatmapOpacity={heatmapOpacity}
+            selectedCoverageSegments={selectedCoverageSegments}
           />
           {selected && (
             <div className="selectedRoute">
@@ -333,6 +342,12 @@ export default function Home() {
                   {km(selected.distance)} km · {rounded(selected.elevation_gain)} m D+
                   {coverage[selected.id] != null && ` · ${coverage[selected.id]}% nouveau`}
                 </span>
+                {coverage[selected.id] != null && (
+                  <span className="coverageLegend">
+                    <i className="legendDot legendDotKnown" /> déjà roulé
+                    <i className="legendDot legendDotNew" /> nouveau
+                  </span>
+                )}
               </div>
               <a
                 href={`https://www.strava.com/routes/${selected.id}`}

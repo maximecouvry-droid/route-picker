@@ -5,6 +5,22 @@ import { MapContainer, Polyline, TileLayer, Tooltip, useMap } from "react-leafle
 import type { LatLngBoundsExpression, LatLngExpression } from "leaflet";
 import type { ActivityItem, RouteItem } from "@/lib/types";
 import { decodePolyline } from "@/lib/polyline";
+import type { CoverageSegment } from "@/lib/coverage";
+
+// Merges consecutive same-classification segments into single polylines so
+// a 50km route doesn't turn into thousands of individual SVG paths.
+function mergeCoverageRuns(segments: CoverageSegment[]) {
+  const runs: { points: [number, number][]; isNew: boolean }[] = [];
+  for (const segment of segments) {
+    const last = runs[runs.length - 1];
+    if (last && last.isNew === segment.isNew) {
+      last.points.push(segment.b);
+    } else {
+      runs.push({ points: [segment.a, segment.b], isNew: segment.isNew });
+    }
+  }
+  return runs;
+}
 
 function FitBounds({ points }: { points: LatLngExpression[] }) {
   const map = useMap();
@@ -21,14 +37,20 @@ export default function RoutesMap({
   selectedId,
   onSelect,
   heatmapActivities = [],
-  heatmapOpacity = 0.18
+  heatmapOpacity = 0.18,
+  selectedCoverageSegments = []
 }: {
   routes: RouteItem[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   heatmapActivities?: ActivityItem[];
   heatmapOpacity?: number;
+  selectedCoverageSegments?: CoverageSegment[];
 }) {
+  const coverageRuns = useMemo(
+    () => mergeCoverageRuns(selectedCoverageSegments),
+    [selectedCoverageSegments]
+  );
   const decoded = useMemo(
     () => routes
       .map((route) => ({
@@ -82,6 +104,14 @@ export default function RoutesMap({
             {(route.distance / 1000).toFixed(1)} km · {Math.round(route.elevation_gain)} m D+
           </Tooltip>
         </Polyline>
+      ))}
+      {coverageRuns.map((run, i) => (
+        <Polyline
+          key={`cov-${i}`}
+          positions={run.points}
+          pathOptions={{ color: run.isNew ? "#e0402a" : "#1e8a4c", weight: 5, opacity: 0.95 }}
+          interactive={false}
+        />
       ))}
     </MapContainer>
   );

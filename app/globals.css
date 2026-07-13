@@ -171,6 +171,11 @@ input, select {
 .selectedRoute div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .selectedRoute strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
 .selectedRoute span { font-size: 13px; color: var(--muted); font-weight: 600; }
+.coverageLegend { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+.legendDot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-left: 8px; }
+.legendDot:first-child { margin-left: 0; }
+.legendDotKnown { background: #1e8a4c; }
+.legendDotNew { background: #e0402a; }
 .selectedRoute a { background: #111; color: white; white-space: nowrap; }
 
 .modalOverlay {

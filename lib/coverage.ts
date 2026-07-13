@@ -133,24 +133,44 @@ export function buildActivityIndex(activityPointSets: Point[][]): ActivityIndex 
   return { isNear };
 }
 
+export type CoverageSegment = { a: Point; b: Point; isNew: boolean };
+
+// Classifies each ~5m slice of the route so the result can be drawn on the
+// map (green = already ridden, red = new) to visually cross-check the
+// aggregate percentage against the heatmap.
+export function routeCoverageSegments(
+  rawRoutePoints: Point[],
+  index: ActivityIndex,
+  thresholdMeters = DEFAULT_THRESHOLD_METERS
+): CoverageSegment[] {
+  if (rawRoutePoints.length < 2) return [];
+  const routePoints = densify(rawRoutePoints, ROUTE_SAMPLE_STEP_METERS);
+
+  const segments: CoverageSegment[] = [];
+  for (let i = 0; i < routePoints.length - 1; i++) {
+    const a = routePoints[i];
+    const b = routePoints[i + 1];
+    if (haversine(a, b) === 0) continue;
+    const midpoint: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    segments.push({ a, b, isNew: !index.isNear(midpoint, thresholdMeters) });
+  }
+  return segments;
+}
+
 export function newRoadPercentage(
   rawRoutePoints: Point[],
   index: ActivityIndex,
   thresholdMeters = DEFAULT_THRESHOLD_METERS
 ) {
-  if (rawRoutePoints.length < 2) return null;
-  const routePoints = densify(rawRoutePoints, ROUTE_SAMPLE_STEP_METERS);
+  const segments = routeCoverageSegments(rawRoutePoints, index, thresholdMeters);
+  if (segments.length === 0) return null;
 
   let totalLength = 0;
   let newLength = 0;
-  for (let i = 0; i < routePoints.length - 1; i++) {
-    const a = routePoints[i];
-    const b = routePoints[i + 1];
-    const segmentLength = haversine(a, b);
-    if (segmentLength === 0) continue;
-    const midpoint: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    totalLength += segmentLength;
-    if (!index.isNear(midpoint, thresholdMeters)) newLength += segmentLength;
+  for (const segment of segments) {
+    const length = haversine(segment.a, segment.b);
+    totalLength += length;
+    if (segment.isNew) newLength += length;
   }
 
   if (totalLength === 0) return null;
