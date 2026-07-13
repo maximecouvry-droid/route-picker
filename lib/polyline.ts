@@ -1,8 +1,6 @@
-import type { LatLngExpression } from "leaflet";
-
-export function decodePolyline(encoded: string): LatLngExpression[] {
+export function decodePolyline(encoded: string): [number, number][] {
   if (!encoded) return [];
-  const points: LatLngExpression[] = [];
+  const points: [number, number][] = [];
   let index = 0;
   let lat = 0;
   let lng = 0;

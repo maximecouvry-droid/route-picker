@@ -3,13 +3,15 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { ActivityItem, RouteItem } from "@/lib/types";
+import { decodePolyline } from "@/lib/polyline";
+import { buildActivityIndex, newRoadPercentage } from "@/lib/coverage";
 
 const RoutesMap = dynamic(() => import("@/components/RoutesMap"), {
   ssr: false,
   loading: () => <div className="mapLoading">Chargement de la carte…</div>
 });
 
-type SortKey = "near" | "distance" | "elevation" | "name";
+type SortKey = "near" | "distance" | "elevation" | "name" | "newRoads";
 
 const km = (meters: number) => Math.round(meters / 100) / 10;
 const rounded = (value: number) => Math.round(value);
@@ -30,6 +32,8 @@ export default function Home() {
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [coverage, setCoverage] = useState<Record<string, number | null>>({});
+  const [computingCoverage, setComputingCoverage] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("route-picker-routes");
@@ -90,6 +94,28 @@ export default function Home() {
     }
   }
 
+  function computeCoverage() {
+    if (activities.length === 0) {
+      alert("Charge d'abord tes sorties vélo pour calculer la nouveauté des itinéraires.");
+      return;
+    }
+    setComputingCoverage(true);
+    setTimeout(() => {
+      const activityPointSets = activities
+        .map((activity) => decodePolyline(activity.map?.summary_polyline || ""))
+        .filter((points) => points.length > 1);
+      const index = buildActivityIndex(activityPointSets);
+
+      const next: Record<string, number | null> = {};
+      for (const route of routes) {
+        const points = decodePolyline(route.map?.summary_polyline || route.map?.polyline || "");
+        next[route.id] = newRoadPercentage(points, index);
+      }
+      setCoverage(next);
+      setComputingCoverage(false);
+    }, 10);
+  }
+
   async function disconnect() {
     await fetch("/api/auth/logout", { method: "POST" });
     setConnected(false);
@@ -122,9 +148,10 @@ export default function Home() {
       .sort((a, b) => {
         if (sort === "name") return a.name.localeCompare(b.name);
         if (sort === "elevation") return a.elevation_gain - b.elevation_gain;
+        if (sort === "newRoads") return (coverage[b.id] ?? -1) - (coverage[a.id] ?? -1);
         return a.distance - b.distance;
       });
-  }, [routes, query, minDistance, maxDistance, maxElevation, sort, showFavorites, favorites]);
+  }, [routes, query, minDistance, maxDistance, maxElevation, sort, showFavorites, favorites, coverage]);
 
   const selected = filteredRoutes.find((route) => route.id === selectedId) ?? null;
 
@@ -218,6 +245,7 @@ export default function Home() {
                   <option value="distance">Distance</option>
                   <option value="elevation">Dénivelé</option>
                   <option value="name">Nom</option>
+                  <option value="newRoads">% routes nouvelles</option>
                 </select>
               </label>
               <label className="checkLabel">
@@ -239,6 +267,12 @@ export default function Home() {
                 </label>
               )}
             </div>
+
+            {activities.length > 0 && (
+              <button className="secondary" onClick={computeCoverage} disabled={computingCoverage}>
+                {computingCoverage ? "Calcul…" : "Calculer les routes nouvelles"}
+              </button>
+            )}
           </div>
 
           <div className="count">
@@ -263,6 +297,9 @@ export default function Home() {
                 <div className="stats">
                   <span>{km(route.distance)} km</span>
                   <span>{rounded(route.elevation_gain)} m D+</span>
+                  {coverage[route.id] != null && (
+                    <span className="newBadge">{coverage[route.id]}% nouveau</span>
+                  )}
                 </div>
                 {route.description && <p>{route.description}</p>}
               </article>
@@ -291,7 +328,10 @@ export default function Home() {
             <div className="selectedRoute">
               <div>
                 <strong>{selected.name}</strong>
-                <span>{km(selected.distance)} km · {rounded(selected.elevation_gain)} m D+</span>
+                <span>
+                  {km(selected.distance)} km · {rounded(selected.elevation_gain)} m D+
+                  {coverage[selected.id] != null && ` · ${coverage[selected.id]}% nouveau`}
+                </span>
               </div>
               <a
                 href={`https://www.strava.com/routes/${selected.id}`}
