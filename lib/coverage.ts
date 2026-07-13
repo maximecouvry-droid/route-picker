@@ -1,7 +1,9 @@
 const EARTH_RADIUS = 6371000;
-const CELL_SIZE_METERS = 50;
-const DEFAULT_THRESHOLD_METERS = 50;
-const DENSIFY_STEP_METERS = 30;
+// Grid resolution is independent from the matching threshold below: isNear()
+// widens its neighbor search to cover whatever threshold it's given.
+const CELL_SIZE_METERS = 25;
+const DEFAULT_THRESHOLD_METERS = 75;
+const DENSIFY_STEP_METERS = 20;
 
 type Point = [number, number];
 
@@ -65,8 +67,9 @@ export function buildActivityIndex(activityPointSets: Point[][]): ActivityIndex 
   function isNear([lat, lng]: Point, thresholdMeters = DEFAULT_THRESHOLD_METERS) {
     const latCell = Math.floor(lat / latStep);
     const lngCell = Math.floor(lng / lngStepAt(lat));
-    for (let dLat = -1; dLat <= 1; dLat++) {
-      for (let dLng = -1; dLng <= 1; dLng++) {
+    const cellRadius = Math.max(1, Math.ceil(thresholdMeters / CELL_SIZE_METERS));
+    for (let dLat = -cellRadius; dLat <= cellRadius; dLat++) {
+      for (let dLng = -cellRadius; dLng <= cellRadius; dLng++) {
         const bucket = grid.get(`${latCell + dLat}_${lngCell + dLng}`);
         if (!bucket) continue;
         for (const point of bucket) {

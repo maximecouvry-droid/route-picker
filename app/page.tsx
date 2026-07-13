@@ -34,6 +34,8 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [coverage, setCoverage] = useState<Record<string, number | null>>({});
   const [computingCoverage, setComputingCoverage] = useState(false);
+  const [heatmapOpacity, setHeatmapOpacity] = useState(0.18);
+  const [yearRange, setYearRange] = useState<[number, number]>([0, 0]);
 
   useEffect(() => {
     const saved = localStorage.getItem("route-picker-routes");
@@ -138,6 +140,27 @@ export default function Home() {
     return [...counts.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [activities]);
 
+  const yearBounds = useMemo<[number, number]>(() => {
+    if (activities.length === 0) {
+      const current = new Date().getFullYear();
+      return [current, current];
+    }
+    const years = activities.map((activity) => Number(activity.start_date.slice(0, 4)));
+    return [Math.min(...years), Math.max(...years)];
+  }, [activities]);
+
+  useEffect(() => {
+    setYearRange(yearBounds);
+  }, [yearBounds[0], yearBounds[1]]);
+
+  const heatmapActivities = useMemo(() => {
+    if (!showHeatmap) return [];
+    return activities.filter((activity) => {
+      const year = Number(activity.start_date.slice(0, 4));
+      return year >= yearRange[0] && year <= yearRange[1];
+    });
+  }, [activities, showHeatmap, yearRange]);
+
   const filteredRoutes = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
     return routes
@@ -207,74 +230,48 @@ export default function Home() {
         </div>
       )}
 
+      <div className="filterBar">
+        <label className="fbField">
+          <span>Rechercher</span>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Beaujolais, Chartreuse…"
+          />
+        </label>
+        <label className="fbField fbSmall">
+          <span>Distance min.</span>
+          <input type="number" min="0" value={minDistance}
+            onChange={(e) => setMinDistance(Number(e.target.value))} />
+        </label>
+        <label className="fbField fbSmall">
+          <span>Distance max.</span>
+          <input type="number" min="0" value={maxDistance}
+            onChange={(e) => setMaxDistance(Number(e.target.value))} />
+        </label>
+        <label className="fbField fbSmall">
+          <span>Dénivelé max.</span>
+          <input type="number" min="0" step="100" value={maxElevation}
+            onChange={(e) => setMaxElevation(Number(e.target.value))} />
+        </label>
+        <label className="fbField fbSmall">
+          <span>Trier par</span>
+          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+            <option value="distance">Distance</option>
+            <option value="elevation">Dénivelé</option>
+            <option value="name">Nom</option>
+            <option value="newRoads">% routes nouvelles</option>
+          </select>
+        </label>
+        <label className="fbField fbCheck checkLabel">
+          <input type="checkbox" checked={showFavorites}
+            onChange={(e) => setShowFavorites(e.target.checked)} />
+          Mes favoris
+        </label>
+      </div>
+
       <section className="workspace">
         <aside className="panel">
-          <div className="filters">
-            <label>
-              Rechercher
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Beaujolais, Chartreuse…"
-              />
-            </label>
-
-            <div className="twoCols">
-              <label>
-                Distance min.
-                <input type="number" min="0" value={minDistance}
-                  onChange={(e) => setMinDistance(Number(e.target.value))} />
-              </label>
-              <label>
-                Distance max.
-                <input type="number" min="0" value={maxDistance}
-                  onChange={(e) => setMaxDistance(Number(e.target.value))} />
-              </label>
-            </div>
-
-            <label>
-              Dénivelé max.
-              <input type="number" min="0" step="100" value={maxElevation}
-                onChange={(e) => setMaxElevation(Number(e.target.value))} />
-            </label>
-
-            <div className="twoCols">
-              <label>
-                Trier par
-                <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-                  <option value="distance">Distance</option>
-                  <option value="elevation">Dénivelé</option>
-                  <option value="name">Nom</option>
-                  <option value="newRoads">% routes nouvelles</option>
-                </select>
-              </label>
-              <label className="checkLabel">
-                <input type="checkbox" checked={showFavorites}
-                  onChange={(e) => setShowFavorites(e.target.checked)} />
-                Mes favoris
-              </label>
-            </div>
-
-            <div className="twoCols">
-              <button className="secondary" onClick={loadActivities} disabled={loadingActivities}>
-                {loadingActivities ? "Import…" : activities.length ? "Actualiser mes sorties" : "Charger mes sorties vélo"}
-              </button>
-              {activities.length > 0 && (
-                <label className="checkLabel">
-                  <input type="checkbox" checked={showHeatmap}
-                    onChange={(e) => setShowHeatmap(e.target.checked)} />
-                  Heatmap ({activities.length})
-                </label>
-              )}
-            </div>
-
-            {activities.length > 0 && (
-              <button className="secondary" onClick={computeCoverage} disabled={computingCoverage}>
-                {computingCoverage ? "Calcul…" : "Calculer les routes nouvelles"}
-              </button>
-            )}
-          </div>
-
           <div className="count">
             <strong>{filteredRoutes.length}</strong> itinéraire{filteredRoutes.length > 1 ? "s" : ""}
           </div>
@@ -322,7 +319,8 @@ export default function Home() {
             routes={filteredRoutes}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            heatmapActivities={showHeatmap ? activities : []}
+            heatmapActivities={heatmapActivities}
+            heatmapOpacity={heatmapOpacity}
           />
           {selected && (
             <div className="selectedRoute">
@@ -344,6 +342,46 @@ export default function Home() {
           )}
         </section>
       </section>
+
+      <footer className="heatmapBar">
+        <div className="heatmapBarLabel">Heatmap</div>
+        <label className="checkLabel">
+          <input type="checkbox" checked={showHeatmap} disabled={activities.length === 0}
+            onChange={(e) => setShowHeatmap(e.target.checked)} />
+          Afficher
+        </label>
+        <button className="ghost" onClick={loadActivities} disabled={loadingActivities}>
+          {loadingActivities ? "Import…" : activities.length ? `Actualiser mes sorties (${activities.length})` : "Charger mes sorties vélo"}
+        </button>
+        <label className="rangeField">
+          <span>Intensité</span>
+          <input type="range" min="0.05" max="0.6" step="0.01" value={heatmapOpacity}
+            onChange={(e) => setHeatmapOpacity(Number(e.target.value))} />
+        </label>
+        {activities.length > 0 && (
+          <>
+            <label className="rangeField">
+              <span>Depuis {yearRange[0]}</span>
+              <input type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[0]}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  setYearRange((prev) => [Math.min(value, prev[1]), prev[1]]);
+                }} />
+            </label>
+            <label className="rangeField">
+              <span>Jusqu&apos;à {yearRange[1]}</span>
+              <input type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[1]}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  setYearRange((prev) => [prev[0], Math.max(value, prev[0])]);
+                }} />
+            </label>
+          </>
+        )}
+        <button className="ghost" onClick={computeCoverage} disabled={computingCoverage || activities.length === 0}>
+          {computingCoverage ? "Calcul…" : "Calculer les routes nouvelles"}
+        </button>
+      </footer>
     </main>
   );
 }

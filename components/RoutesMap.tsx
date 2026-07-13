@@ -20,12 +20,14 @@ export default function RoutesMap({
   routes,
   selectedId,
   onSelect,
-  heatmapActivities = []
+  heatmapActivities = [],
+  heatmapOpacity = 0.18
 }: {
   routes: RouteItem[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   heatmapActivities?: ActivityItem[];
+  heatmapOpacity?: number;
 }) {
   const decoded = useMemo(
     () => routes
@@ -60,7 +62,7 @@ export default function RoutesMap({
         <Polyline
           key={`activity-${id}`}
           positions={points}
-          pathOptions={{ color: "#1e78d6", weight: 2, opacity: 0.15 }}
+          pathOptions={{ color: "#1e78d6", weight: 2, opacity: heatmapOpacity }}
           interactive={false}
         />
       ))}
