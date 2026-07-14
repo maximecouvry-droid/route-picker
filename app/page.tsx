@@ -191,7 +191,6 @@ export default function Home() {
       <header className="topbar">
         <div>
           <h1 className="brandTitle">Route Picker</h1>
-          <p className="brandSubtitle">Trouve le bon parcours, sans fouiller dans Strava.</p>
         </div>
         <div className="headerActions">
           <button className="ghost" onClick={() => setShowSettings(true)}>Réglages</button>
