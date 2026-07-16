@@ -96,5 +96,20 @@ export async function fetchAllActivities() {
     all.push(...batch);
     if (batch.length < 200) break;
   }
-  return all.filter((activity) => SUPPORTED_SPORT_TYPES.has(activity.sport_type));
+
+  // Strava's activity payload carries dozens of fields we never use (kudos,
+  // gear, splits, athlete refs...). Narrowing here keeps both the API
+  // response and the client's localStorage cache well under quota.
+  return all
+    .filter((activity) => SUPPORTED_SPORT_TYPES.has(activity.sport_type))
+    .map((activity) => ({
+      id: activity.id,
+      name: activity.name,
+      distance: activity.distance,
+      total_elevation_gain: activity.total_elevation_gain,
+      moving_time: activity.moving_time,
+      sport_type: activity.sport_type,
+      start_date: activity.start_date,
+      map: { summary_polyline: activity.map?.summary_polyline }
+    }));
 }

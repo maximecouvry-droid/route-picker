@@ -149,7 +149,13 @@ export default function Home() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Impossible de récupérer les sorties.");
       setActivities(data.activities);
-      localStorage.setItem("route-picker-activities", JSON.stringify(data.activities));
+      try {
+        localStorage.setItem("route-picker-activities", JSON.stringify(data.activities));
+      } catch {
+        // Quota exceeded (large history): keep working for this session,
+        // it just won't survive a reload without re-fetching from Strava.
+        alert("Trop de sorties pour être mises en cache localement : elles resteront chargées pour cette session, mais il faudra recliquer sur « Charger mes sorties » après un rechargement de page.");
+      }
       setShowHeatmap(true);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Erreur inconnue");
