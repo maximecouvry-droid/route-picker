@@ -63,16 +63,16 @@ export async function fetchAllRoutes() {
   return all;
 }
 
-const SUPPORTED_SPORT_TYPES = new Set([
+const CYCLING_SPORT_TYPES = new Set([
   "Ride",
   "GravelRide",
   "MountainBikeRide",
   "EBikeRide",
   "Handcycle",
-  "Velomobile",
-  "Run",
-  "TrailRun"
+  "Velomobile"
 ]);
+const SUPPORTED_SPORT_TYPES = new Set([...CYCLING_SPORT_TYPES, "Run", "TrailRun"]);
+const MIN_RIDE_DISTANCE_METERS = 10000;
 
 export async function fetchAllActivities() {
   const session = await getValidSession();
@@ -102,6 +102,7 @@ export async function fetchAllActivities() {
   // response and the client's localStorage cache well under quota.
   return all
     .filter((activity) => SUPPORTED_SPORT_TYPES.has(activity.sport_type))
+    .filter((activity) => !CYCLING_SPORT_TYPES.has(activity.sport_type) || activity.distance >= MIN_RIDE_DISTANCE_METERS)
     .map((activity) => ({
       id: activity.id,
       name: activity.name,

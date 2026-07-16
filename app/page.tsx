@@ -292,6 +292,19 @@ export default function Home() {
     });
   }, [filteredActivities, filterByMap, actMapBounds, mapVisibilityThreshold]);
 
+  // Deliberately based on the raw (unfiltered) datasets so the map only
+  // auto-fits when new data loads, not every time a sidebar/map filter
+  // narrows what's shown -- otherwise zooming in and then tweaking a filter
+  // would snap the view back out.
+  const routeFitPoints = useMemo(
+    () => routes.flatMap((route) => decodePolyline(route.map?.summary_polyline || route.map?.polyline || "")),
+    [routes]
+  );
+  const activityFitPoints = useMemo(
+    () => activities.flatMap((activity) => decodePolyline(activity.map?.summary_polyline || "")),
+    [activities]
+  );
+
   return (
     <main>
       <header className="topbar">
@@ -473,6 +486,7 @@ export default function Home() {
                 heatmapOpacity={heatmapOpacity}
                 selectedCoverageSegments={selectedCoverageSegments}
                 onBoundsChange={filterByMap ? setRouteMapBounds : undefined}
+                fitPoints={routeFitPoints}
               />
               {selected && (
                 <div className="selectedRoute">
@@ -660,6 +674,7 @@ export default function Home() {
                 selectedId={actSelectedId}
                 onSelect={setActSelectedId}
                 onBoundsChange={filterByMap ? setActMapBounds : undefined}
+                fitPoints={activityFitPoints}
               />
               {actSelected && (
                 <div className="selectedRoute">

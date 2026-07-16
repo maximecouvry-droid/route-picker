@@ -12,12 +12,14 @@ export default function ActivitiesMap({
   activities,
   selectedId,
   onSelect,
-  onBoundsChange
+  onBoundsChange,
+  fitPoints
 }: {
   activities: ActivityItem[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onBoundsChange?: (bounds: LatLngBounds) => void;
+  fitPoints?: [number, number][];
 }) {
   const decoded = useMemo(
     () => activities
@@ -37,7 +39,7 @@ export default function ActivitiesMap({
         attribution='&copy; OpenStreetMap contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <FitBounds points={allPoints} />
+      <FitBounds points={fitPoints ?? allPoints} />
       {onBoundsChange && <MapBoundsWatcher onChange={onBoundsChange} />}
       {decoded.map(({ activity, points }) => (
         <Polyline

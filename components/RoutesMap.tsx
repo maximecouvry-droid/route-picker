@@ -31,7 +31,8 @@ export default function RoutesMap({
   heatmapActivities = [],
   heatmapOpacity = 0.18,
   selectedCoverageSegments = [],
-  onBoundsChange
+  onBoundsChange,
+  fitPoints
 }: {
   routes: RouteItem[];
   selectedId: string | null;
@@ -40,6 +41,12 @@ export default function RoutesMap({
   heatmapOpacity?: number;
   selectedCoverageSegments?: CoverageSegment[];
   onBoundsChange?: (bounds: LatLngBounds) => void;
+  // Points used to auto-fit the view. Deliberately separate from `routes`
+  // (which is already narrowed by sidebar/map filters): fitting to the
+  // filtered set would snap the zoom back out every time a filter changes.
+  // Pass the unfiltered dataset's decoded points so this only fires when
+  // new data actually loads.
+  fitPoints?: [number, number][];
 }) {
   const coverageRuns = useMemo(
     () => mergeCoverageRuns(selectedCoverageSegments),
@@ -73,7 +80,7 @@ export default function RoutesMap({
         attribution='&copy; OpenStreetMap contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <FitBounds points={allPoints} />
+      <FitBounds points={fitPoints ?? allPoints} />
       {onBoundsChange && <MapBoundsWatcher onChange={onBoundsChange} />}
       {decodedActivities.map(({ id, points }) => (
         <Polyline
