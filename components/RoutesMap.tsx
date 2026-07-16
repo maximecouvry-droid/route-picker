@@ -2,10 +2,12 @@
 
 import { useMemo } from "react";
 import { MapContainer, Polyline, TileLayer, Tooltip } from "react-leaflet";
+import type { LatLngBounds } from "leaflet";
 import type { ActivityItem, RouteItem } from "@/lib/types";
 import { decodePolyline } from "@/lib/polyline";
 import type { CoverageSegment } from "@/lib/coverage";
 import FitBounds from "@/components/FitBounds";
+import MapBoundsWatcher from "@/components/MapBoundsWatcher";
 
 // Merges consecutive same-classification segments into single polylines so
 // a 50km route doesn't turn into thousands of individual SVG paths.
@@ -28,7 +30,8 @@ export default function RoutesMap({
   onSelect,
   heatmapActivities = [],
   heatmapOpacity = 0.18,
-  selectedCoverageSegments = []
+  selectedCoverageSegments = [],
+  onBoundsChange
 }: {
   routes: RouteItem[];
   selectedId: string | null;
@@ -36,6 +39,7 @@ export default function RoutesMap({
   heatmapActivities?: ActivityItem[];
   heatmapOpacity?: number;
   selectedCoverageSegments?: CoverageSegment[];
+  onBoundsChange?: (bounds: LatLngBounds) => void;
 }) {
   const coverageRuns = useMemo(
     () => mergeCoverageRuns(selectedCoverageSegments),
@@ -70,6 +74,7 @@ export default function RoutesMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <FitBounds points={allPoints} />
+      {onBoundsChange && <MapBoundsWatcher onChange={onBoundsChange} />}
       {decodedActivities.map(({ id, points }) => (
         <Polyline
           key={`activity-${id}`}
@@ -84,8 +89,8 @@ export default function RoutesMap({
           positions={points}
           pathOptions={{
             color: route.id === selectedId ? "#fc5200" : "#252525",
-            weight: route.id === selectedId ? 6 : 3,
-            opacity: route.id === selectedId ? 1 : 0.42
+            weight: route.id === selectedId ? 9 : 5,
+            opacity: route.id === selectedId ? 1 : 0.5
           }}
           eventHandlers={{ click: () => onSelect(route.id) }}
         >

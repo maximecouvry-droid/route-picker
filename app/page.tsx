@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { LatLngBounds } from "leaflet";
 import type { ActivityItem, RouteItem } from "@/lib/types";
 import { decodePolyline } from "@/lib/polyline";
 import { buildActivityIndex, newRoadPercentage, routeCoverageSegments, type ActivityIndex } from "@/lib/coverage";
@@ -40,6 +41,25 @@ const formatDuration = (seconds: number) => {
 };
 const formatDate = (isoDate: string) => isoDate.slice(0, 10).split("-").reverse().join("/");
 
+// Fraction (0-1) of a polyline's length that falls inside `bounds`, used to
+// let the map viewport act as a filter on the list. Plain degree-space
+// distance is fine here since it's only used as a relative length weight
+// over a single route's small extent.
+function visibleFraction(points: [number, number][], bounds: LatLngBounds | null): number {
+  if (!bounds || points.length < 2) return 1;
+  let total = 0;
+  let visible = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const midpoint: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    total += length;
+    if (bounds.contains(midpoint)) visible += length;
+  }
+  return total === 0 ? 1 : visible / total;
+}
+
 export default function Home() {
   const [routes, setRoutes] = useState<RouteItem[]>([]);
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -73,6 +93,11 @@ export default function Home() {
   const [actDateFrom, setActDateFrom] = useState("");
   const [actDateTo, setActDateTo] = useState("");
   const [actSort, setActSort] = useState<ActivitySortKey>("distance");
+
+  const [filterByMap, setFilterByMap] = useState(false);
+  const [mapVisibilityThreshold, setMapVisibilityThreshold] = useState(30);
+  const [routeMapBounds, setRouteMapBounds] = useState<LatLngBounds | null>(null);
+  const [actMapBounds, setActMapBounds] = useState<LatLngBounds | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("route-picker-routes");
@@ -245,6 +270,22 @@ export default function Home() {
 
   const actSelected = filteredActivities.find((activity) => activity.id === actSelectedId) ?? null;
 
+  const visibleRoutes = useMemo(() => {
+    if (!filterByMap || !routeMapBounds) return filteredRoutes;
+    return filteredRoutes.filter((route) => {
+      const points = decodePolyline(route.map?.summary_polyline || route.map?.polyline || "");
+      return visibleFraction(points, routeMapBounds) * 100 >= mapVisibilityThreshold;
+    });
+  }, [filteredRoutes, filterByMap, routeMapBounds, mapVisibilityThreshold]);
+
+  const visibleActivities = useMemo(() => {
+    if (!filterByMap || !actMapBounds) return filteredActivities;
+    return filteredActivities.filter((activity) => {
+      const points = decodePolyline(activity.map?.summary_polyline || "");
+      return visibleFraction(points, actMapBounds) * 100 >= mapVisibilityThreshold;
+    });
+  }, [filteredActivities, filterByMap, actMapBounds, mapVisibilityThreshold]);
+
   return (
     <main>
       <header className="topbar">
@@ -353,17 +394,29 @@ export default function Home() {
                 onChange={(e) => setShowFavorites(e.target.checked)} />
               Mes favoris
             </label>
+            <label className="fbField fbCheck checkLabel">
+              <input type="checkbox" checked={filterByMap}
+                onChange={(e) => setFilterByMap(e.target.checked)} />
+              Filtrer selon la carte
+            </label>
+            {filterByMap && (
+              <label className="rangeField">
+                <span>Visible mini. {mapVisibilityThreshold}%</span>
+                <input type="range" min="0" max="100" step="10" value={mapVisibilityThreshold}
+                  onChange={(e) => setMapVisibilityThreshold(Number(e.target.value))} />
+              </label>
+            )}
           </div>
 
           <section className="workspace">
             <aside className="panel">
               <div className="sectionBar">
                 Itinéraires
-                <span className="sectionBarCount">{filteredRoutes.length}</span>
+                <span className="sectionBarCount">{visibleRoutes.length}</span>
               </div>
 
               <div className="routeList">
-                {filteredRoutes.map((route) => (
+                {visibleRoutes.map((route) => (
                   <article
                     key={route.id}
                     className={`routeCard ${selectedId === route.id ? "selected" : ""}`}
@@ -397,6 +450,11 @@ export default function Home() {
                     Clique sur « Actualiser » pour importer tes itinéraires.
                   </div>
                 )}
+                {routes.length > 0 && filteredRoutes.length > 0 && visibleRoutes.length === 0 && (
+                  <div className="empty">
+                    Aucun itinéraire suffisamment visible dans la zone de la carte affichée.
+                  </div>
+                )}
               </div>
             </aside>
 
@@ -408,6 +466,7 @@ export default function Home() {
                 heatmapActivities={heatmapActivities}
                 heatmapOpacity={heatmapOpacity}
                 selectedCoverageSegments={selectedCoverageSegments}
+                onBoundsChange={filterByMap ? setRouteMapBounds : undefined}
               />
               {selected && (
                 <div className="selectedRoute">
@@ -534,17 +593,29 @@ export default function Home() {
                 <option value="date">Date</option>
               </select>
             </label>
+            <label className="fbField fbCheck checkLabel">
+              <input type="checkbox" checked={filterByMap}
+                onChange={(e) => setFilterByMap(e.target.checked)} />
+              Filtrer selon la carte
+            </label>
+            {filterByMap && (
+              <label className="rangeField">
+                <span>Visible mini. {mapVisibilityThreshold}%</span>
+                <input type="range" min="0" max="100" step="10" value={mapVisibilityThreshold}
+                  onChange={(e) => setMapVisibilityThreshold(Number(e.target.value))} />
+              </label>
+            )}
           </div>
 
           <section className="workspace">
             <aside className="panel">
               <div className="sectionBar">
                 Mes sorties
-                <span className="sectionBarCount">{filteredActivities.length}</span>
+                <span className="sectionBarCount">{visibleActivities.length}</span>
               </div>
 
               <div className="routeList">
-                {filteredActivities.map((activity) => (
+                {visibleActivities.map((activity) => (
                   <article
                     key={activity.id}
                     className={`routeCard ${actSelectedId === activity.id ? "selected" : ""}`}
@@ -569,6 +640,11 @@ export default function Home() {
                     Aucune sortie ne correspond à ces filtres.
                   </div>
                 )}
+                {filteredActivities.length > 0 && visibleActivities.length === 0 && (
+                  <div className="empty">
+                    Aucune sortie suffisamment visible dans la zone de la carte affichée.
+                  </div>
+                )}
               </div>
             </aside>
 
@@ -577,6 +653,7 @@ export default function Home() {
                 activities={filteredActivities}
                 selectedId={actSelectedId}
                 onSelect={setActSelectedId}
+                onBoundsChange={filterByMap ? setActMapBounds : undefined}
               />
               {actSelected && (
                 <div className="selectedRoute">

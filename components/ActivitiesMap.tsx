@@ -2,18 +2,22 @@
 
 import { useMemo } from "react";
 import { MapContainer, Polyline, TileLayer, Tooltip } from "react-leaflet";
+import type { LatLngBounds } from "leaflet";
 import type { ActivityItem } from "@/lib/types";
 import { decodePolyline } from "@/lib/polyline";
 import FitBounds from "@/components/FitBounds";
+import MapBoundsWatcher from "@/components/MapBoundsWatcher";
 
 export default function ActivitiesMap({
   activities,
   selectedId,
-  onSelect
+  onSelect,
+  onBoundsChange
 }: {
   activities: ActivityItem[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onBoundsChange?: (bounds: LatLngBounds) => void;
 }) {
   const decoded = useMemo(
     () => activities
@@ -34,14 +38,15 @@ export default function ActivitiesMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <FitBounds points={allPoints} />
+      {onBoundsChange && <MapBoundsWatcher onChange={onBoundsChange} />}
       {decoded.map(({ activity, points }) => (
         <Polyline
           key={activity.id}
           positions={points}
           pathOptions={{
             color: activity.id === selectedId ? "#fc5200" : "#1e78d6",
-            weight: activity.id === selectedId ? 6 : 2,
-            opacity: activity.id === selectedId ? 1 : 0.35
+            weight: activity.id === selectedId ? 9 : 4,
+            opacity: activity.id === selectedId ? 1 : 0.45
           }}
           eventHandlers={{ click: () => onSelect(activity.id) }}
         >
