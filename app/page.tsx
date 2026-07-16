@@ -11,10 +11,32 @@ const RoutesMap = dynamic(() => import("@/components/RoutesMap"), {
   loading: () => <div className="mapLoading">Chargement de la carte…</div>
 });
 
+const ActivitiesMap = dynamic(() => import("@/components/ActivitiesMap"), {
+  ssr: false,
+  loading: () => <div className="mapLoading">Chargement de la carte…</div>
+});
+
 type SortKey = "near" | "distance" | "elevation" | "name" | "newRoads";
+type ActivitySortKey = "date" | "distance" | "elevation" | "duration";
+type View = "routes" | "activities";
+
+const SPORT_LABELS: Record<string, string> = {
+  Ride: "Route",
+  GravelRide: "Gravel",
+  MountainBikeRide: "VTT",
+  EBikeRide: "VAE",
+  Handcycle: "Handbike",
+  Velomobile: "Vélomobile"
+};
 
 const km = (meters: number) => Math.round(meters / 100) / 10;
 const rounded = (value: number) => Math.round(value);
+const formatDuration = (seconds: number) => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  return h > 0 ? `${h}h${String(m).padStart(2, "0")}` : `${m}min`;
+};
+const formatDate = (isoDate: string) => isoDate.slice(0, 10).split("-").reverse().join("/");
 
 export default function Home() {
   const [routes, setRoutes] = useState<RouteItem[]>([]);
@@ -37,6 +59,18 @@ export default function Home() {
   const [heatmapOpacity, setHeatmapOpacity] = useState(0.18);
   const [yearRange, setYearRange] = useState<[number, number]>([0, 0]);
   const activityIndexRef = useRef<ActivityIndex | null>(null);
+
+  const [view, setView] = useState<View>("routes");
+  const [actSelectedId, setActSelectedId] = useState<string | null>(null);
+  const [sportFilter, setSportFilter] = useState("all");
+  const [actMinDistance, setActMinDistance] = useState(0);
+  const [actMaxDistance, setActMaxDistance] = useState(250);
+  const [actMinDuration, setActMinDuration] = useState(0);
+  const [actMaxDuration, setActMaxDuration] = useState(600);
+  const [actMaxElevation, setActMaxElevation] = useState(5000);
+  const [actDateFrom, setActDateFrom] = useState("");
+  const [actDateTo, setActDateTo] = useState("");
+  const [actSort, setActSort] = useState<ActivitySortKey>("distance");
 
   useEffect(() => {
     const saved = localStorage.getItem("route-picker-routes");
@@ -186,6 +220,29 @@ export default function Home() {
     return routeCoverageSegments(points, activityIndexRef.current);
   }, [selected, coverage]);
 
+  const sportOptions = useMemo(
+    () => [...new Set(activities.map((activity) => activity.sport_type))].sort(),
+    [activities]
+  );
+
+  const filteredActivities = useMemo(() => {
+    return activities
+      .filter((activity) => sportFilter === "all" || activity.sport_type === sportFilter)
+      .filter((activity) => km(activity.distance) >= actMinDistance && km(activity.distance) <= actMaxDistance)
+      .filter((activity) => activity.moving_time / 60 >= actMinDuration && activity.moving_time / 60 <= actMaxDuration)
+      .filter((activity) => activity.total_elevation_gain <= actMaxElevation)
+      .filter((activity) => !actDateFrom || activity.start_date.slice(0, 10) >= actDateFrom)
+      .filter((activity) => !actDateTo || activity.start_date.slice(0, 10) <= actDateTo)
+      .sort((a, b) => {
+        if (actSort === "elevation") return a.total_elevation_gain - b.total_elevation_gain;
+        if (actSort === "duration") return a.moving_time - b.moving_time;
+        if (actSort === "date") return b.start_date.localeCompare(a.start_date);
+        return a.distance - b.distance;
+      });
+  }, [activities, sportFilter, actMinDistance, actMaxDistance, actMinDuration, actMaxDuration, actMaxElevation, actDateFrom, actDateTo, actSort]);
+
+  const actSelected = filteredActivities.find((activity) => activity.id === actSelectedId) ?? null;
+
   return (
     <main>
       <header className="topbar">
@@ -239,166 +296,308 @@ export default function Home() {
         </div>
       )}
 
-      <div className="filterBar">
-        <label className="fbField">
-          <span>Rechercher</span>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Beaujolais, Chartreuse…"
-          />
-        </label>
-        <label className="fbField fbSmall">
-          <span>Distance min.</span>
-          <input type="number" min="0" value={minDistance}
-            onChange={(e) => setMinDistance(Number(e.target.value))} />
-        </label>
-        <label className="fbField fbSmall">
-          <span>Distance max.</span>
-          <input type="number" min="0" value={maxDistance}
-            onChange={(e) => setMaxDistance(Number(e.target.value))} />
-        </label>
-        <label className="fbField fbSmall">
-          <span>Dénivelé max.</span>
-          <input type="number" min="0" step="100" value={maxElevation}
-            onChange={(e) => setMaxElevation(Number(e.target.value))} />
-        </label>
-        <label className="fbField fbSmall">
-          <span>Trier par</span>
-          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-            <option value="distance">Distance</option>
-            <option value="elevation">Dénivelé</option>
-            <option value="name">Nom</option>
-            <option value="newRoads">% routes nouvelles</option>
-          </select>
-        </label>
-        <label className="fbField fbCheck checkLabel">
-          <input type="checkbox" checked={showFavorites}
-            onChange={(e) => setShowFavorites(e.target.checked)} />
-          Mes favoris
-        </label>
+      <div className="tabBar">
+        <button
+          className={`tabButton ${view === "routes" ? "tabButtonActive" : ""}`}
+          onClick={() => setView("routes")}
+        >
+          Itinéraires
+        </button>
+        <button
+          className={`tabButton ${view === "activities" ? "tabButtonActive" : ""}`}
+          onClick={() => setView("activities")}
+        >
+          Mes sorties
+        </button>
       </div>
 
-      <section className="workspace">
-        <aside className="panel">
-          <div className="sectionBar">
-            Itinéraires
-            <span className="sectionBarCount">{filteredRoutes.length}</span>
+      {view === "routes" && (
+        <>
+          <div className="filterBar">
+            <label className="fbField">
+              <span>Rechercher</span>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Beaujolais, Chartreuse…"
+              />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Distance min.</span>
+              <input type="number" min="0" value={minDistance}
+                onChange={(e) => setMinDistance(Number(e.target.value))} />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Distance max.</span>
+              <input type="number" min="0" value={maxDistance}
+                onChange={(e) => setMaxDistance(Number(e.target.value))} />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Dénivelé max.</span>
+              <input type="number" min="0" step="100" value={maxElevation}
+                onChange={(e) => setMaxElevation(Number(e.target.value))} />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Trier par</span>
+              <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+                <option value="distance">Distance</option>
+                <option value="elevation">Dénivelé</option>
+                <option value="name">Nom</option>
+                <option value="newRoads">% routes nouvelles</option>
+              </select>
+            </label>
+            <label className="fbField fbCheck checkLabel">
+              <input type="checkbox" checked={showFavorites}
+                onChange={(e) => setShowFavorites(e.target.checked)} />
+              Mes favoris
+            </label>
           </div>
 
-          <div className="routeList">
-            {filteredRoutes.map((route) => (
-              <article
-                key={route.id}
-                className={`routeCard ${selectedId === route.id ? "selected" : ""}`}
-                onClick={() => setSelectedId(route.id)}
-              >
-                <button
-                  className={`favorite ${favorites.includes(route.id) ? "active" : ""}`}
-                  aria-label="Ajouter aux favoris de l'application"
-                  onClick={(e) => { e.stopPropagation(); toggleFavorite(route.id); }}
-                >
-                  ★
-                </button>
-                <h2>{route.name}</h2>
-                <div className="stats">
-                  <span>{km(route.distance)} km</span>
-                  <span>{rounded(route.elevation_gain)} m D+</span>
-                  {coverage[route.id] != null && (
-                    <span className="newBadge">{coverage[route.id]}% nouveau</span>
-                  )}
-                </div>
-                {route.description && <p>{route.description}</p>}
-              </article>
-            ))}
-            {!connected && routes.length === 0 && (
-              <div className="empty">
-                Connecte ton compte Strava pour charger tes itinéraires.
+          <section className="workspace">
+            <aside className="panel">
+              <div className="sectionBar">
+                Itinéraires
+                <span className="sectionBarCount">{filteredRoutes.length}</span>
               </div>
-            )}
-            {connected && routes.length === 0 && (
-              <div className="empty">
-                Clique sur « Actualiser » pour importer tes itinéraires.
-              </div>
-            )}
-          </div>
-        </aside>
 
-        <section className="mapArea">
-          <RoutesMap
-            routes={filteredRoutes}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            heatmapActivities={heatmapActivities}
-            heatmapOpacity={heatmapOpacity}
-            selectedCoverageSegments={selectedCoverageSegments}
-          />
-          {selected && (
-            <div className="selectedRoute">
-              <div>
-                <strong>{selected.name}</strong>
-                <span>
-                  {km(selected.distance)} km · {rounded(selected.elevation_gain)} m D+
-                  {coverage[selected.id] != null && ` · ${coverage[selected.id]}% nouveau`}
-                </span>
-                {coverage[selected.id] != null && (
-                  <span className="coverageLegend">
-                    <i className="legendDot legendDotKnown" /> déjà roulé
-                    <i className="legendDot legendDotNew" /> nouveau
-                  </span>
+              <div className="routeList">
+                {filteredRoutes.map((route) => (
+                  <article
+                    key={route.id}
+                    className={`routeCard ${selectedId === route.id ? "selected" : ""}`}
+                    onClick={() => setSelectedId(route.id)}
+                  >
+                    <button
+                      className={`favorite ${favorites.includes(route.id) ? "active" : ""}`}
+                      aria-label="Ajouter aux favoris de l'application"
+                      onClick={(e) => { e.stopPropagation(); toggleFavorite(route.id); }}
+                    >
+                      ★
+                    </button>
+                    <h2>{route.name}</h2>
+                    <div className="stats">
+                      <span>{km(route.distance)} km</span>
+                      <span>{rounded(route.elevation_gain)} m D+</span>
+                      {coverage[route.id] != null && (
+                        <span className="newBadge">{coverage[route.id]}% nouveau</span>
+                      )}
+                    </div>
+                    {route.description && <p>{route.description}</p>}
+                  </article>
+                ))}
+                {!connected && routes.length === 0 && (
+                  <div className="empty">
+                    Connecte ton compte Strava pour charger tes itinéraires.
+                  </div>
+                )}
+                {connected && routes.length === 0 && (
+                  <div className="empty">
+                    Clique sur « Actualiser » pour importer tes itinéraires.
+                  </div>
                 )}
               </div>
-              <a
-                href={`https://www.strava.com/routes/${selected.id}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View on Strava
-              </a>
-            </div>
-          )}
-        </section>
-      </section>
+            </aside>
 
-      <footer className="heatmapBar">
-        <div className="sectionBar sectionBarInline">Heatmap</div>
-        <label className="checkLabel">
-          <input type="checkbox" checked={showHeatmap} disabled={activities.length === 0}
-            onChange={(e) => setShowHeatmap(e.target.checked)} />
-          Afficher
-        </label>
-        <button className="secondary" onClick={loadActivities} disabled={loadingActivities}>
-          {loadingActivities ? "Import…" : activities.length ? `Actualiser mes sorties (${activities.length})` : "Charger mes sorties vélo"}
-        </button>
-        <label className="rangeField">
-          <span>Intensité</span>
-          <input type="range" min="0.05" max="0.6" step="0.01" value={heatmapOpacity}
-            onChange={(e) => setHeatmapOpacity(Number(e.target.value))} />
-        </label>
-        {activities.length > 0 && (
-          <>
-            <label className="rangeField">
-              <span>Depuis {yearRange[0]}</span>
-              <input type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[0]}
-                onChange={(e) => {
-                  const value = Number(e.target.value);
-                  setYearRange((prev) => [Math.min(value, prev[1]), prev[1]]);
-                }} />
+            <section className="mapArea">
+              <RoutesMap
+                routes={filteredRoutes}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                heatmapActivities={heatmapActivities}
+                heatmapOpacity={heatmapOpacity}
+                selectedCoverageSegments={selectedCoverageSegments}
+              />
+              {selected && (
+                <div className="selectedRoute">
+                  <div>
+                    <strong>{selected.name}</strong>
+                    <span>
+                      {km(selected.distance)} km · {rounded(selected.elevation_gain)} m D+
+                      {coverage[selected.id] != null && ` · ${coverage[selected.id]}% nouveau`}
+                    </span>
+                    {coverage[selected.id] != null && (
+                      <span className="coverageLegend">
+                        <i className="legendDot legendDotKnown" /> déjà roulé
+                        <i className="legendDot legendDotNew" /> nouveau
+                      </span>
+                    )}
+                  </div>
+                  <a
+                    href={`https://www.strava.com/routes/${selected.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View on Strava
+                  </a>
+                </div>
+              )}
+            </section>
+          </section>
+
+          <footer className="heatmapBar">
+            <div className="sectionBar sectionBarInline">Heatmap</div>
+            <label className="checkLabel">
+              <input type="checkbox" checked={showHeatmap} disabled={activities.length === 0}
+                onChange={(e) => setShowHeatmap(e.target.checked)} />
+              Afficher
             </label>
+            <button className="secondary" onClick={loadActivities} disabled={loadingActivities}>
+              {loadingActivities ? "Import…" : activities.length ? `Actualiser mes sorties (${activities.length})` : "Charger mes sorties vélo"}
+            </button>
             <label className="rangeField">
-              <span>Jusqu&apos;à {yearRange[1]}</span>
-              <input type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[1]}
-                onChange={(e) => {
-                  const value = Number(e.target.value);
-                  setYearRange((prev) => [prev[0], Math.max(value, prev[0])]);
-                }} />
+              <span>Intensité</span>
+              <input type="range" min="0.05" max="0.6" step="0.01" value={heatmapOpacity}
+                onChange={(e) => setHeatmapOpacity(Number(e.target.value))} />
             </label>
-          </>
-        )}
-        <button className="accent" onClick={computeCoverage} disabled={computingCoverage || activities.length === 0}>
-          {computingCoverage ? "Calcul…" : "Calculer les routes nouvelles"}
-        </button>
-      </footer>
+            {activities.length > 0 && (
+              <>
+                <label className="rangeField">
+                  <span>Depuis {yearRange[0]}</span>
+                  <input type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[0]}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      setYearRange((prev) => [Math.min(value, prev[1]), prev[1]]);
+                    }} />
+                </label>
+                <label className="rangeField">
+                  <span>Jusqu&apos;à {yearRange[1]}</span>
+                  <input type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[1]}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      setYearRange((prev) => [prev[0], Math.max(value, prev[0])]);
+                    }} />
+                </label>
+              </>
+            )}
+            <button className="accent" onClick={computeCoverage} disabled={computingCoverage || activities.length === 0}>
+              {computingCoverage ? "Calcul…" : "Calculer les routes nouvelles"}
+            </button>
+          </footer>
+        </>
+      )}
+
+      {view === "activities" && (
+        <>
+          <div className="filterBar">
+            <label className="fbField fbSmall">
+              <span>Sport</span>
+              <select value={sportFilter} onChange={(e) => setSportFilter(e.target.value)}>
+                <option value="all">Tous</option>
+                {sportOptions.map((sport) => (
+                  <option key={sport} value={sport}>{SPORT_LABELS[sport] || sport}</option>
+                ))}
+              </select>
+            </label>
+            <label className="fbField fbSmall">
+              <span>Distance min.</span>
+              <input type="number" min="0" value={actMinDistance}
+                onChange={(e) => setActMinDistance(Number(e.target.value))} />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Distance max.</span>
+              <input type="number" min="0" value={actMaxDistance}
+                onChange={(e) => setActMaxDistance(Number(e.target.value))} />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Durée min. (min)</span>
+              <input type="number" min="0" step="10" value={actMinDuration}
+                onChange={(e) => setActMinDuration(Number(e.target.value))} />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Durée max. (min)</span>
+              <input type="number" min="0" step="10" value={actMaxDuration}
+                onChange={(e) => setActMaxDuration(Number(e.target.value))} />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Dénivelé max.</span>
+              <input type="number" min="0" step="100" value={actMaxElevation}
+                onChange={(e) => setActMaxElevation(Number(e.target.value))} />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Depuis le</span>
+              <input type="date" value={actDateFrom}
+                onChange={(e) => setActDateFrom(e.target.value)} />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Jusqu&apos;au</span>
+              <input type="date" value={actDateTo}
+                onChange={(e) => setActDateTo(e.target.value)} />
+            </label>
+            <label className="fbField fbSmall">
+              <span>Trier par</span>
+              <select value={actSort} onChange={(e) => setActSort(e.target.value as ActivitySortKey)}>
+                <option value="distance">Distance</option>
+                <option value="elevation">Dénivelé</option>
+                <option value="duration">Durée</option>
+                <option value="date">Date</option>
+              </select>
+            </label>
+          </div>
+
+          <section className="workspace">
+            <aside className="panel">
+              <div className="sectionBar">
+                Mes sorties
+                <span className="sectionBarCount">{filteredActivities.length}</span>
+              </div>
+
+              <div className="routeList">
+                {filteredActivities.map((activity) => (
+                  <article
+                    key={activity.id}
+                    className={`routeCard ${actSelectedId === activity.id ? "selected" : ""}`}
+                    onClick={() => setActSelectedId(activity.id)}
+                  >
+                    <h2>{activity.name}</h2>
+                    <div className="stats">
+                      <span>{km(activity.distance)} km</span>
+                      <span>{rounded(activity.total_elevation_gain)} m D+</span>
+                      <span>{formatDuration(activity.moving_time)}</span>
+                      <span>{formatDate(activity.start_date)}</span>
+                    </div>
+                  </article>
+                ))}
+                {activities.length === 0 && (
+                  <div className="empty">
+                    Charge tes sorties vélo depuis l&apos;onglet « Itinéraires » (footer Heatmap) pour les retrouver ici.
+                  </div>
+                )}
+                {activities.length > 0 && filteredActivities.length === 0 && (
+                  <div className="empty">
+                    Aucune sortie ne correspond à ces filtres.
+                  </div>
+                )}
+              </div>
+            </aside>
+
+            <section className="mapArea">
+              <ActivitiesMap
+                activities={filteredActivities}
+                selectedId={actSelectedId}
+                onSelect={setActSelectedId}
+              />
+              {actSelected && (
+                <div className="selectedRoute">
+                  <div>
+                    <strong>{actSelected.name}</strong>
+                    <span>
+                      {km(actSelected.distance)} km · {rounded(actSelected.total_elevation_gain)} m D+ ·{" "}
+                      {formatDuration(actSelected.moving_time)} · {formatDate(actSelected.start_date)}
+                    </span>
+                  </div>
+                  <a
+                    href={`https://www.strava.com/activities/${actSelected.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View on Strava
+                  </a>
+                </div>
+              )}
+            </section>
+          </section>
+        </>
+      )}
     </main>
   );
 }

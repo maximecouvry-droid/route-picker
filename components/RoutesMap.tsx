@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { MapContainer, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
-import type { LatLngBoundsExpression, LatLngExpression } from "leaflet";
+import { useMemo } from "react";
+import { MapContainer, Polyline, TileLayer, Tooltip } from "react-leaflet";
 import type { ActivityItem, RouteItem } from "@/lib/types";
 import { decodePolyline } from "@/lib/polyline";
 import type { CoverageSegment } from "@/lib/coverage";
+import FitBounds from "@/components/FitBounds";
 
 // Merges consecutive same-classification segments into single polylines so
 // a 50km route doesn't turn into thousands of individual SVG paths.
@@ -20,16 +20,6 @@ function mergeCoverageRuns(segments: CoverageSegment[]) {
     }
   }
   return runs;
-}
-
-function FitBounds({ points }: { points: LatLngExpression[] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (points.length > 1) {
-      map.fitBounds(points as LatLngBoundsExpression, { padding: [24, 24] });
-    }
-  }, [map, points]);
-  return null;
 }
 
 export default function RoutesMap({

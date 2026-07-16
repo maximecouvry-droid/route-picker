@@ -21,6 +21,7 @@ export type ActivityItem = {
   name: string;
   distance: number;
   total_elevation_gain: number;
+  moving_time: number;
   sport_type: string;
   start_date: string;
   map: {
