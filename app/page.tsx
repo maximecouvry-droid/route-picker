@@ -26,7 +26,9 @@ const SPORT_LABELS: Record<string, string> = {
   MountainBikeRide: "VTT",
   EBikeRide: "VAE",
   Handcycle: "Handbike",
-  Velomobile: "Vélomobile"
+  Velomobile: "Vélomobile",
+  Run: "Course à pied",
+  TrailRun: "Trail"
 };
 
 const km = (meters: number) => Math.round(meters / 100) / 10;
@@ -120,7 +122,7 @@ export default function Home() {
         return;
       }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Impossible de récupérer les sorties vélo.");
+      if (!response.ok) throw new Error(data.error || "Impossible de récupérer les sorties.");
       setActivities(data.activities);
       localStorage.setItem("route-picker-activities", JSON.stringify(data.activities));
       setShowHeatmap(true);
@@ -133,7 +135,7 @@ export default function Home() {
 
   function computeCoverage() {
     if (activities.length === 0) {
-      alert("Charge d'abord tes sorties vélo pour calculer la nouveauté des itinéraires.");
+      alert("Charge d'abord tes sorties pour calculer la nouveauté des itinéraires.");
       return;
     }
     setComputingCoverage(true);
@@ -272,10 +274,10 @@ export default function Home() {
               <button className="ghost" onClick={() => setShowSettings(false)}>Fermer</button>
             </div>
             <div className="modalBody">
-              <h3>Séances vélo importées par année</h3>
+              <h3>Séances importées par année</h3>
               {activitiesByYear.length === 0 ? (
                 <p className="empty">
-                  Aucune séance importée. Clique sur « Charger mes sorties vélo » dans le footer Heatmap.
+                  Aucune séance importée. Clique sur « Charger mes sorties » dans le footer Heatmap.
                 </p>
               ) : (
                 <ul className="yearList">
@@ -442,7 +444,7 @@ export default function Home() {
               Afficher
             </label>
             <button className="secondary" onClick={loadActivities} disabled={loadingActivities}>
-              {loadingActivities ? "Import…" : activities.length ? `Actualiser mes sorties (${activities.length})` : "Charger mes sorties vélo"}
+              {loadingActivities ? "Import…" : activities.length ? `Actualiser mes sorties (${activities.length})` : "Charger mes sorties"}
             </button>
             <label className="rangeField">
               <span>Intensité</span>
@@ -559,7 +561,7 @@ export default function Home() {
                 ))}
                 {activities.length === 0 && (
                   <div className="empty">
-                    Charge tes sorties vélo depuis l&apos;onglet « Itinéraires » (footer Heatmap) pour les retrouver ici.
+                    Charge tes sorties depuis l&apos;onglet « Itinéraires » (footer Heatmap) pour les retrouver ici.
                   </div>
                 )}
                 {activities.length > 0 && filteredActivities.length === 0 && (

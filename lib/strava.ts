@@ -63,16 +63,18 @@ export async function fetchAllRoutes() {
   return all;
 }
 
-const CYCLING_SPORT_TYPES = new Set([
+const SUPPORTED_SPORT_TYPES = new Set([
   "Ride",
   "GravelRide",
   "MountainBikeRide",
   "EBikeRide",
   "Handcycle",
-  "Velomobile"
+  "Velomobile",
+  "Run",
+  "TrailRun"
 ]);
 
-export async function fetchAllCyclingActivities() {
+export async function fetchAllActivities() {
   const session = await getValidSession();
   if (!session) return null;
 
@@ -94,5 +96,5 @@ export async function fetchAllCyclingActivities() {
     all.push(...batch);
     if (batch.length < 200) break;
   }
-  return all.filter((activity) => CYCLING_SPORT_TYPES.has(activity.sport_type));
+  return all.filter((activity) => SUPPORTED_SPORT_TYPES.has(activity.sport_type));
 }
