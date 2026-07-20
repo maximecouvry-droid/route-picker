@@ -6,6 +6,7 @@ import type { LatLngBounds } from "leaflet";
 import type { ActivityItem, RouteItem } from "@/lib/types";
 import { decodePolyline } from "@/lib/polyline";
 import { buildActivityIndex, newRoadPercentage, routeCoverageSegments, type ActivityIndex } from "@/lib/coverage";
+import { ChevronIcon, PlugIcon, RefreshIcon, SettingsIcon } from "@/components/Icons";
 
 const RoutesMap = dynamic(() => import("@/components/RoutesMap"), {
   ssr: false,
@@ -98,6 +99,13 @@ export default function Home() {
   const [mapVisibilityThreshold, setMapVisibilityThreshold] = useState(30);
   const [routeMapBounds, setRouteMapBounds] = useState<LatLngBounds | null>(null);
   const [actMapBounds, setActMapBounds] = useState<LatLngBounds | null>(null);
+
+  // Collapse state for the mobile accordion panels. Has no visual effect on
+  // desktop (the collapsing CSS only applies under the mobile breakpoint),
+  // so defaulting to closed only matters for small screens.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const [heatmapOpen, setHeatmapOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("route-picker-routes");
@@ -312,16 +320,22 @@ export default function Home() {
           <h1 className="brandTitle">Route Picker</h1>
         </div>
         <div className="headerActions">
-          <button className="ghost" onClick={() => setShowSettings(true)}>Réglages</button>
+          <button className="ghost iconButton" onClick={() => setShowSettings(true)} aria-label="Réglages">
+            <SettingsIcon className="icon" /><span className="btnLabel">Réglages</span>
+          </button>
           {connected ? (
             <>
-              <button className="secondary" onClick={refreshRoutes} disabled={loading}>
-                {loading ? "Synchronisation…" : "Actualiser"}
+              <button className="secondary iconButton" onClick={refreshRoutes} disabled={loading} aria-label="Actualiser">
+                <RefreshIcon className={`icon ${loading ? "iconSpin" : ""}`} /><span className="btnLabel">{loading ? "Synchronisation…" : "Actualiser"}</span>
               </button>
-              <button className="ghost" onClick={disconnect}>Déconnecter</button>
+              <button className="ghost iconButton" onClick={disconnect} aria-label="Déconnecter">
+                <PlugIcon className="icon" /><span className="btnLabel">Déconnecter</span>
+              </button>
             </>
           ) : (
-            <a className="stravaButton" href="/api/auth/login">Se connecter avec Strava</a>
+            <a className="stravaButton iconButton" href="/api/auth/login" aria-label="Se connecter avec Strava">
+              <PlugIcon className="icon" /><span className="btnLabel">Se connecter avec Strava</span>
+            </a>
           )}
         </div>
       </header>
@@ -375,7 +389,11 @@ export default function Home() {
 
       {view === "routes" && (
         <>
-          <div className="filterBar">
+          <button className="mobileToggleBar" onClick={() => setFiltersOpen((o) => !o)}>
+            Filtres
+            <ChevronIcon className="icon" open={filtersOpen} />
+          </button>
+          <div className={`filterBar ${filtersOpen ? "" : "mobileCollapsed"}`}>
             <label className="fbField">
               <span>Rechercher</span>
               <input
@@ -429,12 +447,13 @@ export default function Home() {
 
           <section className="workspace">
             <aside className="panel">
-              <div className="sectionBar">
+              <button className="sectionBar sectionBarToggle" onClick={() => setListOpen((o) => !o)}>
                 Itinéraires
                 <span className="sectionBarCount">{visibleRoutes.length}</span>
-              </div>
+                <ChevronIcon className="icon sectionBarChevron" open={listOpen} />
+              </button>
 
-              <div className="routeList">
+              <div className={`routeList ${listOpen ? "" : "mobileCollapsed"}`}>
                 {visibleRoutes.map((route) => (
                   <article
                     key={route.id}
@@ -516,50 +535,59 @@ export default function Home() {
           </section>
 
           <footer className="heatmapBar">
-            <div className="sectionBar sectionBarInline">Heatmap</div>
-            <label className="checkLabel">
-              <input type="checkbox" checked={showHeatmap} disabled={activities.length === 0}
-                onChange={(e) => setShowHeatmap(e.target.checked)} />
-              Afficher
-            </label>
-            <button className="secondary" onClick={loadActivities} disabled={loadingActivities}>
-              {loadingActivities ? "Import…" : activities.length ? `Actualiser mes sorties (${activities.length})` : "Charger mes sorties"}
+            <button className="sectionBar sectionBarInline sectionBarToggle" onClick={() => setHeatmapOpen((o) => !o)}>
+              Heatmap
+              <ChevronIcon className="icon sectionBarChevron" open={heatmapOpen} />
             </button>
-            <label className="rangeField">
-              <span>Intensité</span>
-              <input type="range" min="0.05" max="0.6" step="0.01" value={heatmapOpacity}
-                onChange={(e) => setHeatmapOpacity(Number(e.target.value))} />
-            </label>
-            {activities.length > 0 && (
-              <>
-                <label className="rangeField">
-                  <span>Depuis {yearRange[0]}</span>
-                  <input type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[0]}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      setYearRange((prev) => [Math.min(value, prev[1]), prev[1]]);
-                    }} />
-                </label>
-                <label className="rangeField">
-                  <span>Jusqu&apos;à {yearRange[1]}</span>
-                  <input type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[1]}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      setYearRange((prev) => [prev[0], Math.max(value, prev[0])]);
-                    }} />
-                </label>
-              </>
-            )}
-            <button className="accent" onClick={computeCoverage} disabled={computingCoverage || activities.length === 0}>
-              {computingCoverage ? "Calcul…" : "Calculer les routes nouvelles"}
-            </button>
+            <div className={`heatmapBarContent ${heatmapOpen ? "" : "mobileCollapsed"}`}>
+              <label className="checkLabel">
+                <input type="checkbox" checked={showHeatmap} disabled={activities.length === 0}
+                  onChange={(e) => setShowHeatmap(e.target.checked)} />
+                Afficher
+              </label>
+              <button className="secondary" onClick={loadActivities} disabled={loadingActivities}>
+                {loadingActivities ? "Import…" : activities.length ? `Actualiser mes sorties (${activities.length})` : "Charger mes sorties"}
+              </button>
+              <label className="rangeField">
+                <span>Intensité</span>
+                <input type="range" min="0.05" max="0.6" step="0.01" value={heatmapOpacity}
+                  onChange={(e) => setHeatmapOpacity(Number(e.target.value))} />
+              </label>
+              {activities.length > 0 && (
+                <>
+                  <label className="rangeField">
+                    <span>Depuis {yearRange[0]}</span>
+                    <input type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[0]}
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        setYearRange((prev) => [Math.min(value, prev[1]), prev[1]]);
+                      }} />
+                  </label>
+                  <label className="rangeField">
+                    <span>Jusqu&apos;à {yearRange[1]}</span>
+                    <input type="range" min={yearBounds[0]} max={yearBounds[1]} value={yearRange[1]}
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        setYearRange((prev) => [prev[0], Math.max(value, prev[0])]);
+                      }} />
+                  </label>
+                </>
+              )}
+              <button className="accent" onClick={computeCoverage} disabled={computingCoverage || activities.length === 0}>
+                {computingCoverage ? "Calcul…" : "Calculer les routes nouvelles"}
+              </button>
+            </div>
           </footer>
         </>
       )}
 
       {view === "activities" && (
         <>
-          <div className="filterBar">
+          <button className="mobileToggleBar" onClick={() => setFiltersOpen((o) => !o)}>
+            Filtres
+            <ChevronIcon className="icon" open={filtersOpen} />
+          </button>
+          <div className={`filterBar ${filtersOpen ? "" : "mobileCollapsed"}`}>
             <label className="fbField fbSmall">
               <span>Sport</span>
               <select value={sportFilter} onChange={(e) => setSportFilter(e.target.value)}>
@@ -629,12 +657,13 @@ export default function Home() {
 
           <section className="workspace">
             <aside className="panel">
-              <div className="sectionBar">
+              <button className="sectionBar sectionBarToggle" onClick={() => setListOpen((o) => !o)}>
                 Mes sorties
                 <span className="sectionBarCount">{visibleActivities.length}</span>
-              </div>
+                <ChevronIcon className="icon sectionBarChevron" open={listOpen} />
+              </button>
 
-              <div className="routeList">
+              <div className={`routeList ${listOpen ? "" : "mobileCollapsed"}`}>
                 {visibleActivities.map((activity) => (
                   <article
                     key={activity.id}

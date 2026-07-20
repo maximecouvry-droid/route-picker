@@ -46,6 +46,10 @@ button, .stravaButton, .selectedRoute a {
   font-size: 13px;
 }
 button:disabled { opacity: .5; cursor: default; }
+.iconButton { display: inline-flex; align-items: center; gap: 8px; }
+.icon { width: 18px; height: 18px; flex: none; }
+.iconSpin { animation: iconSpin 1s linear infinite; }
+@keyframes iconSpin { to { transform: rotate(360deg); } }
 .stravaButton { background: #111; color: #fff; }
 .secondary { background: #111; color: #fff; }
 .accent { background: var(--accent); color: #fff; }
@@ -147,6 +151,12 @@ input, select {
   font-size: 11px;
 }
 .sectionBarInline { border-radius: 8px; padding: 8px 14px; }
+.sectionBarToggle { text-align: left; border: 0; border-radius: 0; }
+.panel > .sectionBarToggle { width: 100%; }
+.sectionBarInline.sectionBarToggle { border-radius: 8px; }
+.sectionBarChevron { margin-left: auto; }
+
+.mobileToggleBar { display: none; }
 
 .routeList { overflow-y: auto; flex: 1; }
 .routeCard {
@@ -246,19 +256,46 @@ input, select {
   border-top: 1px solid var(--line);
   background: var(--paper);
 }
+.heatmapBarContent { display: contents; }
 .rangeField { flex-direction: row; align-items: center; gap: 8px; font-size: 12px; }
 .rangeField span { white-space: nowrap; color: var(--muted); text-transform: none; font-weight: 600; }
 .rangeField input[type="range"] { width: 120px; }
 
 @media (max-width: 800px) {
-  .topbar { padding: 20px 16px; align-items: flex-start; flex-direction: column; }
-  .headerActions { width: 100%; }
-  .headerActions > * { flex: 1; text-align: center; }
+  .topbar { padding: 10px 14px; gap: 10px; }
+  .brandTitle { font-size: 20px; }
+  .headerActions { gap: 6px; }
+  .btnLabel { display: none; }
+  .iconButton { padding: 8px; }
+
+  .mobileToggleBar {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: #111;
+    color: #fff;
+    border: 0;
+    border-radius: 0;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    flex: none;
+  }
+
+  .mobileCollapsed { display: none; }
+
   .filterBar { padding: 12px 16px; }
   .workspace { display: flex; flex-direction: column; }
-  .mapArea { height: 55vh; order: 1; }
+  .mapArea { height: 60vh; order: 1; }
   .panel { height: auto; max-height: none; order: 2; border-right: 0; }
-  .routeList { overflow: visible; }
+  .routeList { overflow: visible; max-height: 50vh; overflow-y: auto; }
   .selectedRoute { left: 10px; right: 10px; bottom: 10px; }
-  .heatmapBar { padding: 12px 16px; }
+  .heatmapBar { padding: 0; flex-direction: column; align-items: stretch; }
+  .heatmapBar .sectionBar { border-radius: 0; }
+  .heatmapBarContent { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 12px 16px; }
+  .heatmapBarContent.mobileCollapsed { display: none; }
 }
